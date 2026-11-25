@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DEEPSYNC · Group 101</title>
+<style>
+:root{color-scheme:light;font:16px/1.55 "Segoe UI",Arial,sans-serif;color:#192d36;background:#f5f7f6}
+*{box-sizing:border-box}body{margin:0}header{background:#16383b;color:white;padding:20px max(5vw,calc((100vw - 940px)/2));display:flex;justify-content:space-between;align-items:center}header strong{letter-spacing:.12em}main{max-width:980px;margin:38px auto;padding:0 20px 45px}h1{font-size:clamp(1.8rem,4vw,2.7rem);line-height:1.12;margin:0 0 10px}h2{font-size:1.2rem;margin:0 0 12px}p{margin:6px 0 14px}section,article{background:white;border:1px solid #d2dcd8;border-radius:10px;padding:20px;margin:15px 0}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px}.grid article{margin:0}button, input::file-selector-button{padding:9px 16px;border-radius:6px;border:1px solid #b3c8c0;font:inherit;cursor:pointer}button{background:#16634e;color:white;border:0}button:disabled{opacity:.5}input{max-width:100%}button:focus-visible,input:focus-visible{outline:3px solid #f0a43c}#status{display:block;margin-top:10px;color:#385451}video,img{max-width:100%;max-height:220px;border-radius:5px}figure{margin:12px 0}figcaption,small{color:#465f63}.value{font-size:1.7rem;font-weight:600}canvas{width:100%;height:155px}#verdict{border-left:5px solid #708484}#verdict[data-state=high]{border-color:#b5572b}#verdict[data-state=low]{border-color:#288363}summary{cursor:pointer}a{color:#176451}[hidden]{display:none!important}
+</style></head>
+<body><header><strong>DEEPSYNC</strong><span>Group 101 · UEM Kolkata</span></header>
+<main><h1>Audio-visual deepfake detection</h1><p>Analyze the face, voice and lip timing in a short video of one person speaking.</p>
+<section><form id="form"><h2><label for="clip">Choose a video</label></h2><p>MP4, MOV or WebM · 1–30 seconds · up to 100 MiB</p>
+<input id="clip" type="file" accept="video/*" required> <button id="run" disabled>Analyze video</button></form>
+<output id="status" aria-live="polite">Choose a clip from the demo folder or use your own.</output>
+<video id="preview" controls hidden></video></section>
+<div id="results" hidden><section id="verdict"><h2 id="decision"></h2><strong id="summary"></strong><p id="context"></p><small id="metadata"></small></section>
+<div class="grid" id="branches"></div>
+<section><h2>Evidence from the clip</h2><div class="grid"><figure id="faceFigure"><img id="face" alt="Tracked face with lip measurements"><figcaption>Face crop and inner-lip measurement lines</figcaption></figure>
+<figure id="graphFigure"><canvas id="chart" width="700" height="200" aria-label="Mouth opening and audio energy across the clip"></canvas><figcaption><b style="color:#14624e">Green</b> = mouth opening · <b style="color:#955017">Orange</b> = sound energy · time runs left to right</figcaption></figure></div>
+<details><summary>How this result was calculated</summary><p id="math"></p><p id="quality"></p></details></section></div></main>
+<script>
+const el=id=>document.getElementById(id);
+const number=x=>x==null?'Unavailable':(100*x).toFixed(1)+' / 100';
+let url;
+el('clip').onchange=()=>{
+  if(url) URL.revokeObjectURL(url);
+  const file=el('clip').files[0];
+  el('preview').hidden=!file;
+  el('results').hidden=true;
+  el('run').disabled=!file;
+  if(file){url=URL.createObjectURL(file);el('preview').src=url;}
+  el('status').textContent=file?'Ready to analyze.':'Choose a video.';
+};
+function graph(sync){
+  el('graphFigure').hidden=!sync.energy;
+  if(!sync.energy)return;
+  const canvas=el('chart'),ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,700,200);
+  ctx.fillStyle='#f4f7f5';ctx.fillRect(0,0,700,200);
+  for(const [values,color,isMouth] of [[sync.mouth,'#14624e',true],[sync.energy,'#b86625',false]]){
+    ctx.strokeStyle=color;ctx.lineWidth=3;ctx.beginPath();
+    let gap=true;
+    values.forEach((v,i)=>{
+      if(isMouth && sync.timeline[i].mouth==null){gap=true;return;}
+      const x=6+688*i/(values.length-1),y=192-184*v;
+      if(gap)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+      gap=false;
+    });
+    ctx.stroke();
+  }
+}
+function display(d){
+  const f=d.fusion,full=f.complete&&!f.verdict.startsWith('Inconclusive');
+  el('decision').textContent=f.verdict;
+  el('verdict').dataset.state=full?(f.score>=.55?'high':'low'):'partial';
+  el('summary').textContent=full?'Combined suspicion score · '+number(f.score):'Insufficient evidence for a full verdict';
+  el('context').textContent=full?'A score of 55 or higher flags the clip for review. This score is not a calibrated probability.':f.reason;
+  el('metadata').textContent=d.media.frames+' frames · '+d.media.duration.toFixed(1)+' s clip · '+d.device.toUpperCase()+' · '+d.seconds+' s processing';
+  el('branches').replaceChildren();
+  for(const [name,branch,detail] of [
+    ['Face',d.visual,'ViT score '+number(d.visual.deep_score)+' · edge cue '+number(d.visual.edge_score)],
+    ['Voice',d.audio,'Wav2Vec2 score '+number(d.audio.deep_score)+' · MFCC cue '+number(d.audio.mfcc_score)],
+    ['Lip timing',d.sync,'Best lag '+d.sync.lag_ms+' ms · correlation '+d.sync.peak_correlation?.toFixed(2)]]){
+    const card=document.createElement('article');
+    for(const [tag,value] of [['h2',name],['div',number(branch.score)],['small',branch.score==null?branch.reason:detail]]){
+      const node=document.createElement(tag);node.textContent=value;if(tag==='div')node.className='value';card.append(node);
+    }
+    el('branches').append(card);
+  }
+  el('faceFigure').hidden=!d.visual.thumbnail;if(d.visual.thumbnail)el('face').src=d.visual.thumbnail;
+  graph(d.sync);
+  el('math').textContent=full?'Simple average: '+number(f.naive_average)+'. Weighted consensus: '+number(f.consensus)+'. Strongest effective branch: '+f.dominant+'. Final = 60% strongest + 40% consensus. Sync attenuation '+(f.gate_applied?'applied.':'inactive.'):'A complete verdict needs usable face, audio and synchronization evidence.';
+  el('quality').textContent='Single-face coverage: '+(100*d.visual.coverage).toFixed(0)+'%. Frames with multiple faces: '+d.visual.multiple_face_frames+'.';
+  el('results').hidden=false;
+}
+el('form').onsubmit=async(event)=>{
+  event.preventDefault();const file=el('clip').files[0];if(!file)return;
+  el('results').hidden=true;
+  if(file.size>100*1024*1024){el('status').textContent='Choose a clip smaller than 100 MiB.';return;}
+  el('run').disabled=true;el('clip').disabled=true;
+  el('status').textContent='Analyzing locally. The first clip also loads both models.';
+  try {
+    const data=new FormData();data.append('file',file);
+    const response=await fetch('/analyze',{method:'POST',body:data});
+    if(!response.ok){const error=await response.json().catch(()=>({}));throw Error(error.detail||'Analysis failed. Check the server window.');}
+    display(await response.json());el('status').textContent='Analysis complete.';
+  } catch(error){el('status').textContent=error.message;}
+  finally{el('run').disabled=false;el('clip').disabled=false;}
+};
+</script></body></html>

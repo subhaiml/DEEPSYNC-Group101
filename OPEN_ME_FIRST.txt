@@ -1,0 +1,31 @@
+GROUP 101 | FRIEND'S LAPTOP | Windows 10/11 x64
+
+TONIGHT
+1. Copy the ZIP to your laptop. Right-click > Extract All. Open the DEEPSYNC folder.
+2. Install 64-bit Python 3.12 with the Python Launcher. Install FFmpeg (including ffprobe).
+   Windows PowerShell commands if you have winget:
+     winget install --id Python.Python.3.12 -e
+     winget install --id Gyan.FFmpeg -e
+   Close PowerShell when finished. Leave several GB of free disk space.
+3. With Wi-Fi on, double-click SETUP_WINDOWS.bat. It installs the Python packages
+   and tests the actual models. Both model files are already inside this ZIP.
+   Wait for READY. CPU is supported; allow extra time for the first analysis.
+4. Double-click START_DEEPSYNC.bat. Keep the terminal open. In Chrome or Edge
+   open http://127.0.0.1:8101 if the page doesn't open automatically.
+5. Click Choose File > demo > oxford-short.mp4 > Analyze video. Repeat with
+   reversed-sound.mp4, then muted.mp4. Practice with Wi-Fi disconnected.
+6. Read PANEL_NOTES.md using Notepad. The five-person script and viva answers are there.
+
+TOMORROW
+Open START_DEEPSYNC.bat and run the original clip once before presenting.
+Say: "The two videos have identical pictures. We reversed only the sound.
+Look at the face score first, then compare the voice scores."
+On the development laptop the voice score went from 2.0 to 77.0 out of 100.
+Muting the video produced Inconclusive. These are demonstration scores.
+The reversed clip is a controlled edit. Avoid claiming it is an AI voice clone.
+
+IF THE PAGE DOESN'T OPEN
+Try OFFLINE_DEMO.bat, select a clip, and wait for the evidence page.
+It runs the same models without a web server. CHECK_DEMO.bat repeats the
+installation test at any time. If setup reports an error, take a screenshot
+of the first error. START_HERE.md has detailed troubleshooting.
